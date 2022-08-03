@@ -17,7 +17,7 @@ import struct
 import sys
 import time
 import speech_recognition as SR
-from audio_common_msgs.msg import AudioData
+from respeaker_ros.msg import StampedAudio
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool, Int32, ColorRGBA
 from dynamic_reconfigure.server import Server
@@ -340,9 +340,9 @@ class RespeakerNode(object):
         self.pub_vad = rospy.Publisher("is_speeching", Bool, queue_size=1, latch=True)
         self.pub_doa_raw = rospy.Publisher("sound_direction", Int32, queue_size=1, latch=True)
         self.pub_doa = rospy.Publisher("sound_localization", PoseStamped, queue_size=1, latch=True)
-        self.pub_audio = rospy.Publisher("audio", AudioData, queue_size=10)
-        self.pub_speech_audio = rospy.Publisher("speech_audio", AudioData, queue_size=10)
-        self.pub_audios = {c:rospy.Publisher('audio/channel%d' % c, AudioData, queue_size=10) for c in self.respeaker_audio.channels}
+        self.pub_audio = rospy.Publisher("audio", StampedAudio, queue_size=10)
+        self.pub_speech_audio = rospy.Publisher("speech_audio", StampedAudio, queue_size=2)
+        self.pub_audios = {c:rospy.Publisher('audio/channel%d' % c, StampedAudio, queue_size=10) for c in self.respeaker_audio.channels}
         # init config
         self.config = None
         self.dyn_srv = Server(RespeakerConfig, self.on_config)
@@ -401,9 +401,9 @@ class RespeakerNode(object):
         if channel == 0:
             self.out.writeframes(data)
 
-        self.pub_audios[channel].publish(AudioData(data=data))
+        self.pub_audios[channel].publish(StampedAudio(data=data, stamp=rospy.get_rostime()))
         if channel == self.main_channel:
-            self.pub_audio.publish(AudioData(data=data))
+            self.pub_audio.publish(StampedAudio(data=data, stamp=rospy.get_rostime()))
             if self.is_speeching:
                 if len(self.speech_audio_buffer) == 0:
                     self.speech_audio_buffer = self.speech_prefetch_buffer
@@ -456,7 +456,7 @@ class RespeakerNode(object):
             rospy.loginfo("Speech detected for %.3f seconds" % duration)
             if self.speech_min_duration <= duration < self.speech_max_duration:
 
-                self.pub_speech_audio.publish(AudioData(data=list(buf)))
+                self.pub_speech_audio.publish(StampedAudio(data=list(buf), stamp=rospy.get_rostime()))
 
 
 if __name__ == '__main__':

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8.3)
 project(respeaker_ros)
 
 find_package(catkin REQUIRED COMPONENTS
+  rospy
+  message_generation
   catkin_virtualenv
   dynamic_reconfigure)
 if ($ENV{ROS_PYTHON_VERSION} EQUAL 2)
@@ -12,10 +14,21 @@ else()
     "roscd respeaker_ros && pip install -r requirements.txt")
 endif()
 
+add_message_files(
+  DIRECTORY
+  msg
+  FILES
+  StampedAudio.msg
+)
+
+generate_messages()
+
 generate_dynamic_reconfigure_options(
   cfg/Respeaker.cfg)
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS message_runtime
+)
 
 if (catkin_virtualenv_FOUND)
   catkin_generate_virtualenv()

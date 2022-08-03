@@ -3,11 +3,13 @@
   <name>respeaker_ros</name>
   <version>0.0.0</version>
   <description>The respeaker_ros package</description>
-  <maintainer email="furushchev@jsk.imi.i.u-tokyo.ac.jp">Yuki Furuta</maintainer>
+  <maintainer email="zacharykratochvil@gmail.com">Zachary Kratochvil</maintainer>
   <license>Apache</license>
   <author email="furushchev@jsk.imi.i.u-tokyo.ac.jp">Yuki Furuta</author>
 
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+
   <depend condition="$ROS_PYTHON_VERSION == 3">catkin_virtualenv</depend>
   <depend>angles</depend>
   <depend>audio_common_msgs</depend>
@@ -20,7 +22,11 @@
   <depend>speech_recognition_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf</depend>
+
   <export>
     <pip_requirements>requirements.txt</pip_requirements>
   </export>
+
+  <exec_depend>message_runtime</exec_depend>
+
 </package>

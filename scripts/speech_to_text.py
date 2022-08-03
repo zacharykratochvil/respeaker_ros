@@ -7,7 +7,7 @@ import rospy
 import speech_recognition as SR
 
 from actionlib_msgs.msg import GoalStatus, GoalStatusArray
-from audio_common_msgs.msg import AudioData
+from respeaker_ros.msg import StampedAudio
 from sound_play.msg import SoundRequest, SoundRequestAction, SoundRequestGoal
 from speech_recognition_msgs.msg import SpeechRecognitionCandidates
 
@@ -40,8 +40,8 @@ class SpeechToText(object):
                 self.tts_action = None
 
         self.pub_speech = rospy.Publisher(
-            "speech_to_text", SpeechRecognitionCandidates, queue_size=1)
-        self.sub_audio = rospy.Subscriber("speech_audio", AudioData, self.audio_cb)
+            "speech_to_text", SpeechRecognitionCandidates, queue_size=2)
+        self.sub_audio = rospy.Subscriber("speech_audio", StampedAudio, self.audio_cb, queue_size=2)
 
     def tts_timer_cb(self, event):
         stamp = event.current_real
@@ -63,9 +63,14 @@ class SpeechToText(object):
                 self.is_canceling = Falser
 
     def audio_cb(self, msg):
+
         if self.is_canceling:
             rospy.loginfo("Speech is cancelled")
             return
+        if rospy.get_rostime().secs - msg.stamp.secs > 2:
+            rospy.loginfo("Old speech discarded")
+            return
+
         data = SR.AudioData(bytes(msg.data), self.sample_rate, self.sample_width)
         with open(str(len(msg.data)) + ".wav","wb") as f:
             f.write(data.get_wav_data())
