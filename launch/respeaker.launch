@@ -5,12 +5,10 @@
   <node name="static_transformer" pkg="tf" type="static_transform_publisher"
         args="0 0 0 0 0 0 map respeaker_base 100"/>
 
-  <node name="speech_to_text" pkg="respeaker_ros" type="speech_to_text.py">
+  <node name="speech_to_text" pkg="respeaker_ros" type="word_detector.py">
     <remap from="audio" to="speech_audio"/>
     <rosparam>
-      language: ja-JP
-      self_cancellation: true
-      tts_tolerance: 0.5
+      language: en-US
     </rosparam>
   </node>
 </launch>
