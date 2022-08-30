@@ -322,10 +322,10 @@ class RespeakerNode(object):
         self.sensor_frame_id = rospy.get_param("~sensor_frame_id", "respeaker_base")
         self.doa_xy_offset = rospy.get_param("~doa_xy_offset", 0.0)
         self.doa_yaw_offset = rospy.get_param("~doa_yaw_offset", 90.0)
-        self.speech_prefetch = rospy.get_param("~speech_prefetch", 0.5)
-        self.speech_continuation = rospy.get_param("~speech_continuation", 0.5)
-        self.speech_max_duration = rospy.get_param("~speech_max_duration", 7.0)
-        self.speech_min_duration = rospy.get_param("~speech_min_duration", 0.1)
+        self.speech_prefetch = rospy.get_param("~speech_prefetch", 1.0)
+        self.speech_continuation = rospy.get_param("~speech_continuation", 2.0)
+        self.speech_max_duration = rospy.get_param("~speech_max_duration", 30.0)
+        self.speech_min_duration = rospy.get_param("~speech_min_duration", 0.05)
         self.main_channel = rospy.get_param('~main_channel', 0)
         suppress_pyaudio_error = rospy.get_param("~suppress_pyaudio_error", True)
         #
@@ -356,13 +356,13 @@ class RespeakerNode(object):
         self.timer_led = None
         self.sub_led = rospy.Subscriber("status_led", ColorRGBA, self.on_status_led)
         self.big_data0 = []
-        self.out = wave.open("/home/pi/Desktop/test.wav", 'wb')
-        self.out.setparams((1, 2, 16000, 1024, "NONE", "NONE"))
+        #self.out = wave.open("/home/pi/Desktop/test.wav", 'wb')
+        #self.out.setparams((1, 2, 16000, 1024, "NONE", "NONE"))
 
     def on_shutdown(self):
         try:
             self.respeaker.close()
-            self.out.close()
+            #self.out.close()
         except:
             pass
         finally:
@@ -390,6 +390,7 @@ class RespeakerNode(object):
 
     def on_status_led(self, msg):
         self.respeaker.set_led_color(r=msg.r, g=msg.g, b=msg.b, a=msg.a)
+
         if self.timer_led and self.timer_led.is_alive():
             self.timer_led.shutdown()
         self.timer_led = rospy.Timer(rospy.Duration(3.0),
@@ -398,8 +399,8 @@ class RespeakerNode(object):
 
     def on_audio(self, data, channel):
 
-        if channel == 0:
-            self.out.writeframes(data)
+        #if channel == 0:
+        #    self.out.writeframes(data)
 
         self.pub_audios[channel].publish(StampedAudio(data=data, stamp=rospy.get_rostime()))
         if channel == self.main_channel:
@@ -455,7 +456,6 @@ class RespeakerNode(object):
             duration = duration / self.respeaker_audio.rate / self.respeaker_audio.bitdepth
             rospy.loginfo("Speech detected for %.3f seconds" % duration)
             if self.speech_min_duration <= duration < self.speech_max_duration:
-
                 self.pub_speech_audio.publish(StampedAudio(data=list(buf), stamp=rospy.get_rostime()))
 
 

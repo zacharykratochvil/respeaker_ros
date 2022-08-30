@@ -10,23 +10,23 @@ from actionlib_msgs.msg import GoalStatus, GoalStatusArray
 from respeaker_ros.msg import StampedAudio
 from sound_play.msg import SoundRequest, SoundRequestAction, SoundRequestGoal
 from speech_recognition_msgs.msg import SpeechRecognitionCandidates
-from pocketsphinx.pocketsphinx import Decoder
+from std_msgs.msg import ColorRGBA
 
 keywords=[
 ("stand up", .95),
-("stand", 1.1),
-("up", 1.18),
+("stand", 1.05),
+("up", 1.2),
 
-("sit down", 1.0),
-("sit up", .99),
-("sit", 1.05),
+("sit down", .99),
+("sit up", .98),
+("sit", 1.15),
 
-("lie down", 1.1),
+("lie down", .99),
 ("down", 1.2),
 
-("k dog", .88),
-("hello", 1.1),
-("hi there", 1.0)
+("k dog", .85),
+("hello", 1.05),
+("hi there", .99)
 ]
 
 class SpeechToText(object):
@@ -36,7 +36,8 @@ class SpeechToText(object):
         self.sample_width = rospy.get_param("~sample_width", 2)
         # language of STT service
         self.language = rospy.get_param("~language", "en-US")
-        # ignore voice input while the robot is speaking
+        
+        self.pub_led = rospy.Publisher("status_led", ColorRGBA, queue_size=10)
         self.pub_speech = rospy.Publisher(
             "speech_to_text", SpeechRecognitionCandidates, queue_size=2)
         self.sub_audio = rospy.Subscriber("speech_audio", StampedAudio, self.audio_cb, queue_size=2)
@@ -65,9 +66,11 @@ class SpeechToText(object):
         except SR.UnknownValueError as e:
             rospy.logerr("Failed to recognize: %s" % str(e))
             rospy.loginfo("value error")
+            self.pub_led.publish(1,0,0,1)
         except SR.RequestError as e:
             rospy.logerr("Failed to recognize: %s" % str(e))
             rospy.loginfo("request error")
+            self.pub_led.publish(1,0,0,1)
 
 
 if __name__ == '__main__':
