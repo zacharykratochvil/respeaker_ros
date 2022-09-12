@@ -13,19 +13,19 @@ from speech_recognition_msgs.msg import SpeechRecognitionCandidates
 from std_msgs.msg import ColorRGBA
 
 keywords=[
-("stand up", .95),
-("stand", 1.05),
-("up", 1.2),
+("stand up", .98),
+("stand", 1.16),
+("up", 1.21),
 
-("sit down", .99),
-("sit up", .98),
+("sit down", 1.0),
+("sit up", .99),
 ("sit", 1.15),
 
-("lie down", .99),
+("lie down", 1.0),
 ("down", 1.2),
 
-("k dog", .85),
-("hello", 1.05),
+("k dog", .86),
+("hello", 1.1),
 ("hi there", .99)
 ]
 
@@ -39,14 +39,14 @@ class SpeechToText(object):
         
         self.pub_led = rospy.Publisher("status_led", ColorRGBA, queue_size=10)
         self.pub_speech = rospy.Publisher(
-            "speech_to_text", SpeechRecognitionCandidates, queue_size=2)
+            "speech_to_text", SpeechRecognitionCandidates, queue_size=1)
         self.sub_audio = rospy.Subscriber("speech_audio", StampedAudio, self.audio_cb, queue_size=2)
 
         self.recognizer = SR.Recognizer()
 
     def audio_cb(self, msg):
 
-        if rospy.get_rostime().secs - msg.stamp.secs > 2:
+        if rospy.get_rostime() - msg.stamp > rospy.Duration(2):
             rospy.loginfo("Old speech discarded")
             return
 
@@ -66,11 +66,11 @@ class SpeechToText(object):
         except SR.UnknownValueError as e:
             rospy.logerr("Failed to recognize: %s" % str(e))
             rospy.loginfo("value error")
-            self.pub_led.publish(1,0,0,1)
+            #self.pub_led.publish(1,0,0,1)
         except SR.RequestError as e:
             rospy.logerr("Failed to recognize: %s" % str(e))
             rospy.loginfo("request error")
-            self.pub_led.publish(1,0,0,1)
+            #self.pub_led.publish(1,0,0,1)
 
 
 if __name__ == '__main__':

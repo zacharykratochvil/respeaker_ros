@@ -67,7 +67,7 @@ class SpeechToText(object):
         if self.is_canceling:
             rospy.loginfo("Speech is cancelled")
             return
-        if rospy.get_rostime().secs - msg.stamp.secs > 2:
+        if rospy.get_rostime() - msg.stamp > rospy.Duration(2):
             rospy.loginfo("Old speech discarded")
             return
 

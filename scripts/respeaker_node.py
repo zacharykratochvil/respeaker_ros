@@ -116,6 +116,7 @@ class RespeakerInterface(object):
                                  idProduct=self.PRODUCT_ID)
         if not self.dev:
             raise RuntimeError("Failed to find Respeaker device")
+        time.sleep(.5)
         rospy.loginfo("Initializing Respeaker device")
         self.dev.reset()
         self.pixel_ring = usb_pixel_ring_v2.PixelRing(self.dev)
@@ -167,9 +168,13 @@ class RespeakerInterface(object):
 
         length = 8
 
-        response = self.dev.ctrl_transfer(
-            usb.util.CTRL_IN | usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_DEVICE,
-            0, cmd, id, length, self.TIMEOUT)
+        try:
+            response = self.dev.ctrl_transfer(
+                usb.util.CTRL_IN | usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_DEVICE,
+                0, cmd, id, length, self.TIMEOUT)
+        except:
+            time.sleep(.001)
+            return read(name)
 
         #response = struct.unpack(b'ii', struct.pack(b'ii',*response))
         response = struct.unpack(b'ii', bytes([x for x in response]))
@@ -228,7 +233,8 @@ class RespeakerAudio(object):
         self.rate = 16000
         self.bitwidth = 2
         self.bitdepth = 16
-        self.i = 0
+
+        self.lpf_hz = 1000 #low pass filter cutoff, hz
 
         # find device
         count = self.pyaudio.get_device_count()
@@ -293,13 +299,9 @@ class RespeakerAudio(object):
         chunk_per_channel = np.math.ceil(len(data) / self.available_channels)
         data = np.reshape(data, (chunk_per_channel, self.available_channels))
         for chan in self.channels:
+       
+            # convert to bytes
             chan_data = bytearray(data[:, chan].tobytes())
-            
-            ## save this chunk to file
-            #self.i += 1
-            #sound_data = SR.AudioData(chan_data, self.rate, self.bitwidth)
-            #with open(str(chan) + " one chunck " + str(self.i) + ".wav","wb") as f:
-            #    f.write(sound_data.get_wav_data())
 
             # invoke callback
             self.on_audio(chan_data, chan)
@@ -318,14 +320,14 @@ class RespeakerAudio(object):
 class RespeakerNode(object):
     def __init__(self):
         rospy.on_shutdown(self.on_shutdown)
-        self.update_rate = rospy.get_param("~update_rate", 10.0)
+        self.update_rate = rospy.get_param("~update_rate", 5.0)
         self.sensor_frame_id = rospy.get_param("~sensor_frame_id", "respeaker_base")
         self.doa_xy_offset = rospy.get_param("~doa_xy_offset", 0.0)
         self.doa_yaw_offset = rospy.get_param("~doa_yaw_offset", 90.0)
         self.speech_prefetch = rospy.get_param("~speech_prefetch", 1.0)
         self.speech_continuation = rospy.get_param("~speech_continuation", 2.0)
-        self.speech_max_duration = rospy.get_param("~speech_max_duration", 30.0)
-        self.speech_min_duration = rospy.get_param("~speech_min_duration", 0.05)
+        self.speech_max_duration = rospy.get_param("~speech_max_duration", 15.0)
+        self.speech_min_duration = rospy.get_param("~speech_min_duration", 0.5)
         self.main_channel = rospy.get_param('~main_channel', 0)
         suppress_pyaudio_error = rospy.get_param("~suppress_pyaudio_error", True)
         #
@@ -334,6 +336,8 @@ class RespeakerNode(object):
         self.speech_audio_buffer = bytearray()
         self.is_speeching = False
         self.speech_stopped = rospy.Time(0)
+        self.last_msg_time = rospy.get_rostime()
+        self.save_file_index = 0
         self.prev_is_voice = None
         self.prev_doa = None
         # advertise
@@ -443,20 +447,71 @@ class RespeakerNode(object):
             msg.pose.orientation.z = ori[3]
             self.pub_doa.publish(msg)
 
-        # speech audio
+        # determine when to send audio
         if is_voice:
             self.speech_stopped = stamp
+
         if stamp - self.speech_stopped < rospy.Duration(self.speech_continuation):
             self.is_speeching = True
+
+            self.send_speech(rospy.Duration(2))
+
         elif self.is_speeching:
-            buf = self.speech_audio_buffer
+            self.send_speech(rospy.Duration(0))
+
+            duration = self.calc_duration(len(self.speech_audio_buffer))            
+
             self.speech_audio_buffer = bytearray()
             self.is_speeching = False
-            duration = len(buf) * self.respeaker_audio.bitwidth * 8.0 
-            duration = duration / self.respeaker_audio.rate / self.respeaker_audio.bitdepth
-            rospy.loginfo("Speech detected for %.3f seconds" % duration)
-            if self.speech_min_duration <= duration < self.speech_max_duration:
-                self.pub_speech_audio.publish(StampedAudio(data=list(buf), stamp=rospy.get_rostime()))
+            
+            rospy.loginfo("Speech ended after %.3f seconds" % duration)
+
+        else:
+            self.last_msg_time = rospy.get_rostime() # count last message from either last message or beginning of speech
+
+    # gates, filters, and publishes speech 
+    def send_speech(self, min_last_msg_time):
+        speech_longer_than_min = self.calc_duration(len(self.speech_audio_buffer)) > self.speech_min_duration
+        since_last_message_longer_than_min = rospy.get_rostime() - self.last_msg_time > min_last_msg_time
+        if speech_longer_than_min == True and since_last_message_longer_than_min == True:
+            self.last_msg_time = rospy.get_rostime()
+            width_to_send = min(len(self.speech_audio_buffer), self.calc_width(self.speech_max_duration))
+            send_buffer = self.speech_audio_buffer[-width_to_send:]
+
+            '''
+            # low pass filter data
+            freq_data = np.fft.fft(send_buffer)
+            freqs = np.fft.fftfreq(len(send_buffer), d=1/self.respeaker_audio.rate)
+            
+            # see np.fft.ifft docs for reference on array formating 
+            stop_bin_1 = np.nonzero(freqs > self.respeaker_audio.lpf_hz)[0][0]
+            start_bin = np.nonzero(freqs < 0)[0][0]
+            stop_bin_2 = np.nonzero(freqs < -self.respeaker_audio.lpf_hz)[0][0]
+            filtered_freq_data = list(freq_data[0:stop_bin_1]) + [0]*(start_bin-stop_bin_1) + list(freq_data[start_bin:stop_bin_2]) + [0]*len(freq_data)-stop_bin_2
+             
+            filtered_data = np.asarray(np.real(np.fft.ifft(filtered_freq_data)), dtype=np.int16)
+            filtered_bytes = bytearray(filtered_data.tobytes())
+            '''     
+
+            self.pub_speech_audio.publish(StampedAudio(data=list(send_buffer), stamp=rospy.get_rostime()))
+
+            # save this chunk to file
+            self.save_file_index += 1
+            sound_data = SR.AudioData(self.speech_audio_buffer[-width_to_send:], self.respeaker_audio.rate, self.respeaker_audio.bitwidth)
+            with open("/home/pi/Desktop/one message " + str(self.save_file_index) + ".wav","wb") as f:
+                f.write(sound_data.get_wav_data())
+            
+    # calculates duration in seconds from length of buffer and buffer parameters
+    def calc_duration(self, width):
+        duration = width * self.respeaker_audio.bitwidth * 8.0 
+        duration = duration / self.respeaker_audio.rate / self.respeaker_audio.bitdepth
+        return duration
+        
+    # does the reverse of calc_duration
+    def calc_width(self, duration):
+        width = duration * self.respeaker_audio.rate * self.respeaker_audio.bitdepth
+        width = width / (self.respeaker_audio.bitwidth * 8.0)
+        return int(width)
 
 
 if __name__ == '__main__':
