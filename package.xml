@@ -8,7 +8,7 @@
   <author email="furushchev@jsk.imi.i.u-tokyo.ac.jp">Yuki Furuta</author>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <depend condition="$ROS_PYTHON_VERSION == 3">catkin_virtualenv</depend>
+  <depend condition="$ROS_PYTHON_VERSION == 2">catkin_virtualenv</depend>
   <depend>angles</depend>
   <depend>audio_common_msgs</depend>
   <depend>audio_play</depend>
@@ -16,7 +16,7 @@
   <depend>dynamic_reconfigure</depend>
   <depend>geometry_msgs</depend>
   <depend>portaudio19-dev</depend>
-  <depend>python-pyaudio</depend>
+  <depend>python3-pyaudio</depend>
   <depend>speech_recognition_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf</depend>

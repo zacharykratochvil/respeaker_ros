@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 2.8.3)
 project(respeaker_ros)
 
 find_package(catkin REQUIRED COMPONENTS
-  catkin_virtualenv
   dynamic_reconfigure)
 if ($ENV{ROS_PYTHON_VERSION} EQUAL 2)
   find_package(catkin_virtualenv REQUIRED)
@@ -35,6 +34,10 @@ install(FILES requirements.txt
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 if (CATKIN_ENABLE_TESTING)
-  catkin_add_nosetests(test/test_installed.py
-    DEPENDENCIES ${PROJECT_NAME}_generate_virtualenv)
+  if ($ENV{ROS_PYTHON_VERSION} EQUAL 2)
+    catkin_add_nosetests(test/test_installed.py
+      DEPENDENCIES ${PROJECT_NAME}_generate_virtualenv)
+  else()
+    catkin_add_nosetests(test/test_installed.py)
+  endif()
 endif()
