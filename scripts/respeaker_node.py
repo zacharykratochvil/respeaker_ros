@@ -7,7 +7,6 @@ from contextlib import contextmanager
 import usb.core
 import usb.util
 import pyaudio
-import wave
 import math
 import numpy as np
 import tf.transformations as T
@@ -171,14 +170,12 @@ class RespeakerInterface(object):
             usb.util.CTRL_IN | usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_RECIPIENT_DEVICE,
             0, cmd, id, length, self.TIMEOUT)
 
-        #response = struct.unpack(b'ii', struct.pack(b'ii',*response))
         response = struct.unpack(b'ii', bytes([x for x in response]))
 
         if data[2] == 'int':
             result = response[0]
         else:
             result = response[0] * (2.**response[1])
-        #result = response[0]
 
         return result
 
@@ -228,7 +225,6 @@ class RespeakerAudio(object):
         self.rate = rospy.get_param("~sample_rate", 16000)
         self.bitwidth = rospy.get_param("~sample_width", 2)
         self.bitdepth = 16
-        self.i = 0
 
         # find device
         count = self.pyaudio.get_device_count()
@@ -271,7 +267,6 @@ class RespeakerAudio(object):
             input_device_index=self.device_index,
         )
 
-
     def __del__(self):
         self.stop()
         try:
@@ -285,9 +280,7 @@ class RespeakerAudio(object):
         except:
             pass
 
-    
     def stream_callback(self, in_data, frame_count, time_info, status):
-        
         # split channel
         data = np.frombuffer(in_data, dtype=np.int16)
         chunk_per_channel = np.math.ceil(len(data) / self.available_channels)
@@ -297,7 +290,7 @@ class RespeakerAudio(object):
 
             # invoke callback
             self.on_audio(chan_data, chan)
-        
+
         return None, pyaudio.paContinue
 
     def start(self):
@@ -349,7 +342,6 @@ class RespeakerNode(object):
                                       self.on_timer)
         self.timer_led = None
         self.sub_led = rospy.Subscriber("status_led", ColorRGBA, self.on_status_led)
-        self.big_data0 = []
 
     def on_shutdown(self):
         try:
@@ -388,16 +380,17 @@ class RespeakerNode(object):
                                        oneshot=True)
 
     def on_audio(self, data, channel):
-
         self.pub_audios[channel].publish(AudioData(data=data))
         if channel == self.main_channel:
             self.pub_audio.publish(AudioData(data=data))
             if self.is_speeching:
                 if len(self.speech_audio_buffer) == 0:
                     self.speech_audio_buffer = self.speech_prefetch_buffer
-                for x in data: self.speech_audio_buffer += bytearray([x])
+                for x in data:
+                    self.speech_audio_buffer += bytearray([x])
             else:
-                for x in data: self.speech_prefetch_buffer += bytearray([x])
+                for x in data:
+                    self.speech_prefetch_buffer += bytearray([x])
                 self.speech_prefetch_buffer = self.speech_prefetch_buffer[-self.speech_prefetch_bytes:]
 
     def on_timer(self, event):
