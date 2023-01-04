@@ -60,7 +60,7 @@ class SpeechToText(object):
                 self.last_tts = stamp
             if stamp - self.last_tts > self.tts_tolerance:
                 rospy.logdebug("END CANCELLATION")
-                self.is_canceling = Falser
+                self.is_canceling = False
 
     def audio_cb(self, msg):
         if self.is_canceling:
@@ -70,13 +70,11 @@ class SpeechToText(object):
 
         try:
             rospy.loginfo("Waiting for result %d" % len(data.get_raw_data()))
-            result = self.recognizer.recognize_sphinx(
-                data, language=self.language, show_all=False) #, key=None
-            rospy.loginfo(result)
+            result, confidence = self.recognizer.recognize_google(
+                data, language=self.language, show_all=False, with_confidence=True)
 
-            msg = SpeechRecognitionCandidates(transcript=result)
+            msg = SpeechRecognitionCandidates(transcript=[result], confidence=[confidence])
             self.pub_speech.publish(msg)
-
         except SR.UnknownValueError as e:
             rospy.logerr("Failed to recognize: %s" % str(e))
             rospy.loginfo("value error")
